@@ -141,7 +141,7 @@ def generate_pdf(content_text: str, title: str = "مستند رسمي") -> io.By
     return pdf_io
 
 def send_telegram_message(chat_id: int, text: str):
-    """إرسال رسالة نصية فورية إلى المستخدم"""
+    """إرسال رسالة نصية إلى المستخدم"""
     url = f"{TELEGRAM_API}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
     try:
@@ -150,14 +150,18 @@ def send_telegram_message(chat_id: int, text: str):
         logger.error(f"Error in send_telegram_message: {e}")
 
 def send_telegram_document(chat_id: int, file_bytes: io.BytesIO, filename: str, caption: str):
-    """إرسال ملف PDF للمستخدم عبر تيليجرام"""
+    """إرسال ملف PDF للمستخدم عبر تيليجرام مع كشف أي خطأ من خادم تيليجرام"""
     url = f"{TELEGRAM_API}/sendDocument"
     files = {"document": (filename, file_bytes.getvalue(), "application/pdf")}
     data = {"chat_id": chat_id, "caption": caption}
     try:
-        requests.post(url, data=data, files=files, timeout=30)
+        response = requests.post(url, data=data, files=files, timeout=40)
+        if not response.ok:
+            logger.error(f"Telegram upload error: {response.text}")
+            send_telegram_message(chat_id, f"⚠️ خطأ أثناء إرسال الملف من تيليجرام:\n{response.text}")
     except Exception as e:
         logger.error(f"Error in send_telegram_document: {e}")
+        send_telegram_message(chat_id, f"⚠️ تعذر رفع المستند: {str(e)}")
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -177,89 +181,4 @@ async def home():
         </style>
     </head>
     <body>
-        <div class="card">
-            <h2>🚀 خادم شركة وييفقايد للأعمال الهندسية</h2>
-            <p>سيرفر توليد المستندات وبوت تيليجرام يعمل بنجاح 24/7</p>
-            <div class="badge">الهوية البصرية: {bg_status}</div>
-        </div>
-    </body>
-    </html>
-    """
-
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    """استقبال الرسائل من تيليجرام ومعالجتها"""
-    try:
-        update = await request.json()
-        if "message" not in update:
-            return JSONResponse(content={"status": "no_message"})
-
-        message = update["message"]
-        chat_id = message["chat"]["id"]
-
-        if "voice" in message or "audio" in message:
-            send_telegram_message(
-                chat_id,
-                "🎙️ أهلاً بك! تم استلام رسالتك الصوتية.\n"
-                "لتوليد المستند الرسمي مباشرة، يرجى كتابة تفاصيل الفاتورة أو الخطاب كنص وسأقوم بإصدار الـ PDF فوراً."
-            )
-            return JSONResponse(content={"status": "ok"})
-
-        if "text" not in message:
-            return JSONResponse(content={"status": "unsupported_media"})
-
-        text = message["text"].strip()
-
-        if text.startswith("/start"):
-            welcome_text = (
-                "مرحباً بك في نظام شركة وييفقايد للأعمال الهندسية 📄✨\n\n"
-                "أنا جاهز لاستقبال بيانات المراسلات والفواتير.\n"
-                "أرسل لي نص الفاتورة أو الخطاب، وسأقوم بتحويله فوراً إلى مستند PDF معتمد بالهوية الرسمية للشركة."
-            )
-            send_telegram_message(chat_id, welcome_text)
-            return JSONResponse(content={"status": "ok"})
-
-        send_telegram_message(chat_id, "⏳ جاري إعداد وتوليد المستند بالهوية البصرية المعتمدة...")
-
-        doc_title = "فاتورة أعمال هندسية" if "فاتورة" in text else "مستند رسمي - وييفقايد"
-        pdf_file = generate_pdf(content_text=text, title=doc_title)
-
-        send_telegram_document(
-            chat_id=chat_id,
-            file_bytes=pdf_file,
-            filename="Waveguide_Official_Document.pdf",
-            caption="✅ تم إصدار المستند بنجاح بالهوية الرسمية لشركة وييفقايد للأعمال الهندسية."
-        )
-
-    except Exception as e:
-        logger.error(f"Error handling webhook: {e}", exc_info=True)
-
-    return JSONResponse(content={"status": "ok"})
-            # إشعار ببدء التجهيز
-        send_telegram_message(
-            chat_id, "⏳ جاري إعداد وتوليد المستند بالهوية البصرية المعتمدة..."
-        )
-
-        try:
-          doc_title = (
-              "فاتورة أعمال هندسية"
-              if "فاتورة" in text
-              else "مستند رسمي - وييفقايد"
-          )
-          pdf_file = generate_pdf(content_text=text, title=doc_title)
-
-          send_telegram_document(
-              chat_id=chat_id,
-              file_bytes=pdf_file,
-              filename="Waveguide_Official_Document.pdf",
-              caption=(
-                  "✅ تم إصدار المستند بنجاح بالهوية الرسمية لشركة وييفقايد"
-                  " للأعمال الهندسية."
-              ),
-          )
-        except Exception as e:
-          send_telegram_message(
-              chat_id, f"⚠️ حدث خطأ داخلي أثناء معالجة المستند:\n{str(e)}"
-          )
-
-
+        <div
