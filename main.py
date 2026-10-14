@@ -235,4 +235,31 @@ async def telegram_webhook(request: Request):
         logger.error(f"Error handling webhook: {e}", exc_info=True)
 
     return JSONResponse(content={"status": "ok"})
+            # إشعار ببدء التجهيز
+        send_telegram_message(
+            chat_id, "⏳ جاري إعداد وتوليد المستند بالهوية البصرية المعتمدة..."
+        )
+
+        try:
+          doc_title = (
+              "فاتورة أعمال هندسية"
+              if "فاتورة" in text
+              else "مستند رسمي - وييفقايد"
+          )
+          pdf_file = generate_pdf(content_text=text, title=doc_title)
+
+          send_telegram_document(
+              chat_id=chat_id,
+              file_bytes=pdf_file,
+              filename="Waveguide_Official_Document.pdf",
+              caption=(
+                  "✅ تم إصدار المستند بنجاح بالهوية الرسمية لشركة وييفقايد"
+                  " للأعمال الهندسية."
+              ),
+          )
+        except Exception as e:
+          send_telegram_message(
+              chat_id, f"⚠️ حدث خطأ داخلي أثناء معالجة المستند:\n{str(e)}"
+          )
+
 
