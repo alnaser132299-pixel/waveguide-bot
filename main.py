@@ -17,25 +17,23 @@ GEMINI_KEY = K1 + K2
 
 TG_API = f"https://api.telegram.org/bot{TOKEN}"
 TG_FILE = f"https://api.telegram.org/file/bot{TOKEN}"
+BG_NAME = "1000344641-93003ba8ae050194.jpg"
 
 PROMPT = (
-    "أنت النظام الهندسي والإداري لشركة وييفقايد للأعمال الهندسية. "
-    "حول طلب المستخدم إلى مستند رسمي متكامل بصيغة HTML داخلية فقط بدون markdown. "
-    "1. إذا كان الطلب فاتورة أو عرض سعر أو مستخلص: "
-    "ضع العنوان في المنتصف داخل <div class='subj'>، ثم جدول <table> بأعمدة: "
-    "(م، البيان / الوصف، الكمية، سعر الوحدة، الإجمالي) مع صف إجمالي أخير مميز. "
-    "2. إذا كان الطلب خطاباً رسمياً: "
-    "اكتب الجهة الموجه إليها، ثم تحية طيبة، ثم الموضوع، ثم فقرات الخطاب الرصينة."
+    "أنت النظام الإداري لشركة وييفقايد للأعمال الهندسية. "
+    "حول طلب المستخدم إلى مستند رسمي بصيغة HTML داخلية فقط بدون markdown. "
+    "للفواتير والمستخلصات: ضع العنوان في <div class='subj'>، "
+    "ثم جدول <table> بأعمدة (م، البيان، الكمية، سعر الوحدة، الإجمالي) "
+    "مع صف إجمالي أخير. وللخطابات: اكتب الجهة، التحية، الموضوع، والفقرات."
 )
 
-def get_img_b64(is_stamp=False):
-    files = glob.glob("*.png") + glob.glob("*.jpg") + glob.glob("*.jpeg")
+def get_bg_b64():
+    if os.path.exists(BG_NAME):
+        with open(BG_NAME, "rb") as fp:
+            return base64.b64encode(fp.read()).decode()
+    files = glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.png")
     for f in files:
-        low = f.lower()
-        if is_stamp and ("stamp" in low or "sign" in low):
-            with open(f, "rb") as fp:
-                return base64.b64encode(fp.read()).decode()
-        if not is_stamp and "stamp" not in low and "sign" not in low:
+        if "stamp" not in f.lower():
             with open(f, "rb") as fp:
                 return base64.b64encode(fp.read()).decode()
     return None
@@ -44,163 +42,87 @@ def ask_gemini(text="", audio_b64=None):
     parts = [{"text": PROMPT}]
     if audio_b64:
         parts.append({
-            "inline_data": {
-                "mime_type": "audio/ogg",
-                "data": audio_b64
-            }
+            "inline_data": {"mime_type": "audio/ogg", "data": audio_b64}
         })
     if text:
-        parts.append({"text": f"تفاصيل الطلب: {text}"})
+        parts.append({"text": f"الطلب: {text}"})
 
-    for model in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+    for m in ["gemini-2.0-flash", "gemini-1.5-flash"]:
         url = (
             "https://generativelanguage.googleapis.com/v1beta/"
-            f"models/{model}:generateContent?key={GEMINI_KEY}"
+            f"models/{m}:generateContent?key={GEMINI_KEY}"
         )
         try:
             r = requests.post(
-                url,
-                json={"contents": [{"parts": parts}]},
-                timeout=30
+                url, json={"contents": [{"parts": parts}]}, timeout=25
             )
             if r.ok:
                 res = r.json()
                 out = res["candidates"][0]["content"]["parts"][0]["text"]
-                out = out.replace("```html", "").replace("```", "")
-                return out.strip(), None
-            err = r.text
-        except Exception as e:
-            err = str(e)
-    return None, err
+                return out.replace("```html", "").replace("```", "").strip()
+        except Exception:
+            pass
+    return None
+
+def format_fallback(text: str):
+    lines = [ln.strip() for ln in text.strip().split("\n") if ln.strip()]
+    if not lines:
+        return "<p></p>"
+    title = lines[0]
+    body = lines[1:] if len(lines) > 1 else lines
+    html = f"<div class='subj'>{title}</div>"
+    for p in body:
+        html += f"<p>{p}</p>"
+    return html
 
 def make_pdf(body_html: str):
-    bg_b64 = get_img_b64(is_stamp=False)
-    st_b64 = get_img_b64(is_stamp=True)
+    bg_b64 = get_bg_b64()
     date_s = datetime.now().strftime("%Y/%m/%dم")
 
-    bg_css = ""
+    bg_tag = ""
     if bg_b64:
-        bg_css = (
-            f"background: url('data:image/png;base64,{bg_b64}') "
-            "no-repeat center; background-size: 210mm 297mm;"
+        bg_tag = (
+            f"<img class='bg' src='data:image/jpeg;base64,{bg_b64}'/>"
         )
 
-    stamp_html = ""
-    if st_b64:
-        stamp_html = (
-            f"<img src='data:image/png;base64,{st_b64}' "
-            "style='width:135px;margin-top:4px;'/>"
-        )
+    svg_stamp = (
+        "<svg width='125' height='125' viewBox='0 0 140 140'>"
+        "<circle cx='70' cy='70' r='62' fill='none' "
+        "stroke='#0C564C' stroke-width='3.5' stroke-dasharray='4,2'/>"
+        "<circle cx='70' cy='70' r='55' fill='none' "
+        "stroke='#0C564C' stroke-width='1.5'/>"
+        "<text x='70' y='48' text-anchor='middle' fill='#0C564C' "
+        "font-size='10' font-weight='bold'>شركة وييفقايد</text>"
+        "<text x='70' y='64' text-anchor='middle' fill='#0C564C' "
+        "font-size='9.5' font-weight='bold'>للأعمال الهندسية</text>"
+        "<line x1='28' y1='73' x2='112' y2='73' "
+        "stroke='#F5B800' stroke-width='2'/>"
+        "<text x='70' y='88' text-anchor='middle' fill='#0C564C' "
+        "font-size='9' font-weight='bold'>WAVEGUIDE ENG.</text>"
+        "<text x='70' y='104' text-anchor='middle' fill='#0C564C' "
+        "font-size='8'>الإدارة العامة - معتمد</text>"
+        "</svg>"
+    )
 
     html = (
         "<!DOCTYPE html><html dir='rtl' lang='ar'><head><meta charset='utf-8'>"
         "<style>"
-        f"@page {{ size: A4; margin: 0; {bg_css} }}"
+        "@page { size: A4; margin: 0; }"
         "body { font-family: 'Noto Sans Arabic', sans-serif; margin: 0;"
-        " padding: 145px 45px 115px 45px; direction: rtl; color: #111;"
-        " font-size: 14px; line-height: 1.8; }"
+        " padding: 155px 45px 120px 45px; direction: rtl; color: #111;"
+        " font-size: 14px; line-height: 1.8; position: relative; }"
+        ".bg { position: fixed; top: 0; left: 0; width: 210mm;"
+        " height: 297mm; z-index: -10; }"
         ".basmala { text-align: center; font-weight: bold;"
-        " font-size: 15px; margin-bottom: 10px; }"
+        " font-size: 15px; margin-bottom: 8px; }"
         ".date-row { text-align: right; font-weight: bold;"
-        " font-size: 13.5px; margin-bottom: 15px; }"
+        " font-size: 13.5px; margin-bottom: 14px; color: #0C564C; }"
         ".subj { text-align: center; font-size: 17px; font-weight: bold;"
-        " color: #0C564C; text-decoration: underline; margin: 15px 0; }"
+        " color: #0C564C; background: rgba(248,250,252,0.85);"
+        " border-right: 4px solid #F5B800; padding: 6px 12px;"
+        " margin: 14px 0; }"
         "p { text-align: justify; margin: 8px 0; }"
-        "table { width: 100%; border-collapse: collapse; margin: 15px 0; }"
-        "th { background: #0C564C; color: #fff; padding: 9px;"
-        " border: 1px solid #0C564C; border-bottom: 3px solid #F5B800;"
-        " font-size: 13.5px; }"
-        "td { padding: 8px; border: 1px solid #cbd5e1; text-align: center; }"
-        "tr:nth-child(even) { background: #f8fafc; }"
-        "tr:last-child { font-weight: bold; background: #f1f5f9;"
-        " border-bottom: 3px double #0C564C; }"
-        ".sig { margin-top: 40px; text-align: left; padding-left: 20px; }"
-        ".sig-box { display: inline-block; text-align: center;"
-        " font-weight: bold; line-height: 1.6; }"
-        "</style></head><body>"
-        "<div class='basmala'>بسم الله الرحمن الرحيم</div>"
-        f"<div class='date-row'>التاريخ: {date_s}</div>"
-        f"<div class='content'>{body_html}</div>"
-        "<div class='sig'><div class='sig-box'>"
-        "المدير العام<br>مهندس حسن طارق عامر بابكر<br>"
-        f"{stamp_html}</div></div></body></html>"
-    )
-
-    buf = io.BytesIO()
-    HTML(string=html).write_pdf(buf)
-    buf.seek(0)
-    return buf, (bg_b64 is not None)
-
-def send_msg(cid, txt):
-    requests.post(
-        f"{TG_API}/sendMessage",
-        json={"chat_id": cid, "text": txt},
-        timeout=10
-    )
-
-def send_doc(cid, buf, cap):
-    files = {"document": ("Waveguide_Official.pdf", buf.getvalue(), "application/pdf")}
-    requests.post(
-        f"{TG_API}/sendDocument",
-        data={"chat_id": cid, "caption": cap},
-        files=files,
-        timeout=40
-    )
-
-@app.get("/")
-def home():
-    has_bg = get_img_b64(False) is not None
-    st = "✅ مرفوعة وجاهزة" if has_bg else "⚠️ لم يتم رفع صورة الترويسة في GitHub"
-    return HTMLResponse(
-        "<div style='text-align:center;direction:rtl;padding:30px;'>"
-        "<h2>سيرفر وييفقايد يعمل 24/7</h2>"
-        f"<p>حالة الورقة المروّسة: <b>{st}</b></p></div>"
-    )
-
-@app.post("/webhook")
-async def webhook(req: Request):
-    try:
-        data = await req.json()
-        msg = data.get("message", {})
-        cid = msg.get("chat", {}).get("id")
-        if not cid:
-            return JSONResponse({"ok": True})
-
-        text = msg.get("text", "").strip()
-        if text.startswith("/start"):
-            send_msg(
-                cid,
-                "مرحباً بك في نظام وييفقايد للأعمال الهندسية 📄✨\n"
-                "أرسل تفاصيل الفاتورة أو الخطاب نصياً أو صوتياً."
-            )
-            return JSONResponse({"ok": True})
-
-        audio_b64 = None
-        if "voice" in msg:
-            send_msg(cid, "🎙️ جاري الاستماع للتسجيل وتجهيز المستند...")
-            fid = msg["voice"]["file_id"]
-            r1 = requests.get(f"{TG_API}/getFile?file_id={fid}").json()
-            fpath = r1["result"]["file_path"]
-            raw = requests.get(f"{TG_FILE}/{fpath}").content
-            audio_b64 = base64.b64encode(raw).decode()
-        elif text:
-            send_msg(cid, "⏳ جاري صياغة وتوليد المستند بالهوية الرسمية...")
-        else:
-            return JSONResponse({"ok": True})
-
-        ai_html, err = ask_gemini(text=text, audio_b64=audio_b64)
-        if not ai_html:
-            if audio_b64:
-                send_msg(cid, f"⚠️ تعذر تحليل الصوت:\n{err}")
-                return JSONResponse({"ok": True})
-            paras = [f"<p>{p}</p>" for p in text.split("\n") if p.strip()]
-            ai_html = "".join(paras)
-
-        pdf, has_bg = make_pdf(ai_html)
-        note = "" if has_bg else "\n⚠️ ملاحظة: ارفع صورة الترويسة في GitHub لتظهر الخلفية."
-        send_doc(cid, pdf, f"✅ تم إصدار المستند بنجاح.{note}")
-
-    except Exception as e:
-        if "cid" in locals() and cid:
-            send_msg(cid, f"⚠️ خطأ: {e}")
-    return JSONResponse({"ok": True})
+        "table { width: 100%; border-collapse: collapse; margin: 15px 0;"
+        " background: rgba(255,255,255,0.9); }"
+        "th { background: #0C564C; color: #fff; padding: 8px;"
+        " border:
