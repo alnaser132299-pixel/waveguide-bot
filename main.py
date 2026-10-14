@@ -17,29 +17,19 @@ def get_bg():
     return ""
 
 def ask_ai(txt="", aud=None):
-    p = [{"text": "أنت نظام شركة وييفقايد. حول الطلب لمستند HTML داخلي فقط بدون markdown مع جدول <table> للفواتير."}]
+    p = [{"text": """أنت نظام شركة وييفقايد للأعمال الهندسية.
+حول الطلب لمستند HTML داخلي فقط بدون markdown مع جدول <table> للفواتير."""}]
     if aud:
         p.append({"inline_data": {"mime_type": "audio/ogg", "data": aud}})
     if txt:
         p.append({"text": txt})
-    u = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GK}"
+    u = (
+        "https://generativelanguage.googleapis.com/v1beta/"
+        f"models/gemini-2.0-flash:generateContent?key={GK}"
+    )
     try:
         r = requests.post(u, json={"contents": [{"parts": p}]}, timeout=20)
         if r.ok:
             t = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            return t.replace("```html", "").replace("```", "")
-    except Exception:
-        pass
-    ps = "".join([f"<p>{x}</p>" for x in txt.split("\n") if x.strip()])
-    return f"<div class='sub'>مستند رسمي - وييفقايد</div>{ps}"
-
-def make_pdf(body):
-    b64 = get_bg()
-    img = f"<img class='bg' src='data:image/jpeg;base64,{b64}'/>" if b64 else ""
-    dt = datetime.now().strftime("%Y/%m/%dم")
-    st = (
-        "<svg width='110' height='110' viewBox='0 0 120 120'>"
-        "<circle cx='60' cy='60' r='54' fill='none' stroke='#0C564C' stroke-width='3'/>"
-        "<text x='60' y='48' text-anchor='middle' fill='#0C564C' font-size='10' font-weight='bold'>شركة وييفقايد</text>"
-        "<text x='60' y='66' text-anchor='middle' fill='#0C564C' font-size='9' font-weight='bold'>للأعمال الهندسية</text>"
-        "<text x='60' y='84' text-anchor='middle' fill='#F5B800' font-size='9'
+            bk = "`" * 3
+            return t.replace
