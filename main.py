@@ -7,23 +7,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from weasyprint import HTML
 
-# حل تعارض مكتبة pydyf
-try:
-    import pydyf
-    _orig_init = pydyf.PDF.__init__
-    def _safe_init(self, *a, **kw):
-        try:
-            _orig_init(self, *a, **kw)
-        except TypeError:
-            _orig_init(self)
-            if a:
-                self.version = a[0]
-            if len(a) > 1:
-                self.identifier = a[1]
-    pydyf.PDF.__init__ = _safe_init
-except Exception:
-    pass
-
 app = FastAPI()
 TOKEN = "8730433601:AAEA2qHbPxtt1Z3-oWoQIBlFWNAjwe9NP04"
 API_URL = f"https://api.telegram.org/bot{TOKEN}"
