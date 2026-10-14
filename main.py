@@ -1,4 +1,4 @@
-import os
+اimport os
 import io
 import glob
 import requests
@@ -9,9 +9,8 @@ from weasyprint import HTML
 app = FastAPI()
 
 # بيانات بوت تيليجرام
-BOT_TOKEN = "8730433601:AAEA2qHbPxtt1Z3-owoQIB1FWNAjwe9NP04"
+BOT_TOKEN = "8730433601:AAEA2qHbPxtt1Z3-oWoQIBlFWNAjwe9NP04"
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
-
 def get_letterhead_path():
     """البحث عن صورة الورقة المروّسة داخل مجلد التطبيق"""
     for ext in ("*.png", "*.jpg", "*.jpeg"):
